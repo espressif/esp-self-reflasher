@@ -1,0 +1,59 @@
+menu "Example Configuration"
+
+    menu "Bootloader reflash configuration"
+        config EXAMPLE_BOOTLOADER_UPGRADE_URL
+            string "Bootloader bin url endpoint"
+            default "http://192.168.100.101:8070/mcuboot_esp32s3.bin"
+            help
+                URL of server which hosts the bootloader binary
+                image.
+        config EXAMPLE_BOOTLOADER_DEST_ADDRESS
+            hex "Bootloader region address"
+            default 0x1000 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2
+            default 0x0
+            help
+                This address must match the bootloader address.
+        config EXAMPLE_BOOTLOADER_DEST_MAX_SIZE
+            hex "Bootloader region size"
+            default 0xF000
+    endmenu
+
+    menu "Application reflash configuration"
+        config EXAMPLE_APP_UPGRADE_URL
+            string "Application upgrade url endpoint"
+            default "http://192.168.100.101:8070/app_upd.bin"
+            help
+                URL of server which hosts the firmware
+                image.
+        config EXAMPLE_APP_DEST_ADDRESS
+            hex "Application region address"
+            default 0x110000
+            help
+                This address must match the expected region which the bootloader
+                will check for update.
+        config EXAMPLE_APP_DEST_MAX_SIZE
+            hex "Application region size"
+            default 0x100000
+    endmenu
+
+    config EXAMPLE_SKIP_COMMON_NAME_CHECK
+        bool "Skip server certificate CN fieldcheck"
+        default n
+        help
+            This allows you to skip the validation of OTA server certificate CN field.
+
+    config EXAMPLE_TARGET_PARTITION
+        bool "Define target partition for staging"
+        default n
+            help
+                Enable the lookup of a configured partition label to stage
+                the binaries
+
+    config EXAMPLE_TARGET_PARTITION_LABEL
+        string "Target partition label for staging"
+        default "storage"
+        depends on EXAMPLE_TARGET_PARTITION
+            help
+                Partition label must match a valid configured partition
+
+endmenu
