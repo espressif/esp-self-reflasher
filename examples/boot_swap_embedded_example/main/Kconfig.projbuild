@@ -1,0 +1,26 @@
+menu "Example Configuration"
+
+    config EXAMPLE_TARGET_BINARY_DIR_PATH
+        string "Directory where the reflashing image is placed"
+        default "../example_bin_dir"
+        help
+            Reflashing image directory path.
+
+    config EXAMPLE_TARGET_BINARY_NAME
+        string "Target reflashing image filename"
+        default "app_upd.merged.bin"
+        help
+            Target binary that will be embedded and the copied to
+            the destination region.
+
+    config EXAMPLE_BIN_DEST_ADDRESS
+        hex "Destination address"
+        default BOOTLOADER_OFFSET_IN_FLASH
+        help
+            Destination address to which the target binary will be copied to.
+
+    config EXAMPLE_BIN_DEST_MAX_SIZE
+        hex "Destination region size"
+        default 0x110000
+
+endmenu

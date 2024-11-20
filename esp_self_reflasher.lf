@@ -1,0 +1,39 @@
+[mapping:spi_flash_reflasher]
+archive: libspi_flash.a
+entries:
+    spi_flash_mmap (noflash)
+    esp_flash_api (noflash)
+    flash_mmap (noflash)
+    cache_utils (noflash)
+    flash_ops (noflash)
+    spi_flash_chip_generic (noflash)
+    spi_flash_chip_issi (noflash)
+    spi_flash_chip_mxic (noflash)
+    spi_flash_chip_gd (noflash)
+    spi_flash_chip_winbond (noflash)
+    spi_flash_chip_boya (noflash)
+    spi_flash_chip_th (noflash)
+    memspi_host_driver (noflash)
+    flash_brownout_hook (noflash)
+    spi_flash_wrap (noflash)
+
+[mapping:esp_mm_reflasher]
+archive: libesp_mm.a
+entries:
+    * (noflash)
+
+[mapping:esp_rom_reflasher]
+archive: libesp_rom.a
+entries:
+    * (noflash)
+
+[mapping:esp_system_reflasher]
+archive: libesp_system.a
+entries:
+    esp_system:esp_restart (noflash)
+
+[mapping:esp_self_reflasher]
+archive: libesp-self-reflasher.a
+entries:
+    * (noflash)
+    self_reflasher:esp_self_reflasher_get_running_partition (default)

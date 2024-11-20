@@ -50,3 +50,18 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# default build directory name
+build
+
+# lock files
+dependencies.lock
+
+# VS Code Settings
+.vscode/
+
+# Example project files
+examples/**/build/
+examples/**/build_esp*_*/
+examples/**/sdkconfig
+examples/**/sdkconfig.old
