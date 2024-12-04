@@ -30,7 +30,7 @@
 
 #include "self_reflasher.h"
 
-static const char *TAG = "ota_reflash_example";
+static const char *TAG = "boot_swap_download_example";
 extern const uint8_t server_cert_pem_start[] asm("_binary_ca_cert_pem_start");
 extern const uint8_t server_cert_pem_end[] asm("_binary_ca_cert_pem_end");
 
@@ -69,12 +69,12 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-void ota_reflash_example_task(void *pvParameter)
+void boot_swap_download_example_task(void *pvParameter)
 {
     ESP_LOGI(TAG, "Starting Self Reflasher example task");
 
-    esp_http_client_config_t http_config = {
-        .url = CONFIG_EXAMPLE_BOOTLOADER_UPGRADE_URL,
+    esp_http_client_config_t http_config_app = {
+        .url = CONFIG_EXAMPLE_APP_UPGRADE_URL,
         // .cert_pem = (char *)server_cert_pem_start,
         .event_handler = _http_event_handler,
         .buffer_size = BUFFER_SIZE,    // HTTP buffer size
@@ -83,28 +83,28 @@ void ota_reflash_example_task(void *pvParameter)
     };
 
 #ifdef CONFIG_EXAMPLE_SKIP_COMMON_NAME_CHECK
-    http_config.skip_cert_common_name_check = true;
+    http_config_app.skip_cert_common_name_check = true;
 #endif
 
-    dest_region_t bootloader_region = {
-        .dest_region_address = CONFIG_EXAMPLE_BOOTLOADER_DEST_ADDRESS,
-        .dest_region_size =    CONFIG_EXAMPLE_BOOTLOADER_DEST_MAX_SIZE,
+    addr_region_t app_region = {
+        .region_address = CONFIG_EXAMPLE_APP_DEST_ADDRESS,
+        .region_size =    CONFIG_EXAMPLE_APP_DEST_MAX_SIZE,
     };
 
-    esp_self_reflasher_config_t self_reflasher_config = {
-        .http_config = &http_config,
-        .dest_region = bootloader_region,
+    esp_self_reflasher_config_t self_reflasher_config_app = {
+        .http_config = &http_config_app,
+        .dest_region = app_region,
     };
 
 #if CONFIG_EXAMPLE_TARGET_PARTITION
-    self_reflasher_config.target_partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
+    self_reflasher_config_app.target_partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
                                                                       ESP_PARTITION_SUBTYPE_ANY,
                                                                       CONFIG_EXAMPLE_TARGET_PARTITION_LABEL);
 #endif
 
     esp_self_reflasher_handle_t self_reflasher_handle = NULL;
 
-    esp_err_t err = esp_self_reflasher_init(&self_reflasher_config, &self_reflasher_handle);
+    esp_err_t err = esp_self_reflasher_init(&self_reflasher_config_app, &self_reflasher_handle);
 
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Self reflasher initialization failed: %s", esp_err_to_name(err));
@@ -124,8 +124,8 @@ void ota_reflash_example_task(void *pvParameter)
         return;
     }
 
-    esp_http_client_config_t http_config_app = {
-        .url = CONFIG_EXAMPLE_APP_UPGRADE_URL,
+    esp_http_client_config_t http_config = {
+        .url = CONFIG_EXAMPLE_BOOTLOADER_UPGRADE_URL,
         // .cert_pem = (char *)server_cert_pem_start,
         .event_handler = _http_event_handler,
         .buffer_size = BUFFER_SIZE,    // HTTP buffer size
@@ -134,20 +134,20 @@ void ota_reflash_example_task(void *pvParameter)
     };
 
 #ifdef CONFIG_EXAMPLE_SKIP_COMMON_NAME_CHECK
-    http_config_app.skip_cert_common_name_check = true;
+    http_config.skip_cert_common_name_check = true;
 #endif
 
-    dest_region_t app_region = {
-        .dest_region_address = CONFIG_EXAMPLE_APP_DEST_ADDRESS,
-        .dest_region_size =    CONFIG_EXAMPLE_APP_DEST_MAX_SIZE,
+    addr_region_t bootloader_region = {
+        .region_address = CONFIG_EXAMPLE_BOOTLOADER_DEST_ADDRESS,
+        .region_size =    CONFIG_EXAMPLE_BOOTLOADER_DEST_MAX_SIZE,
     };
 
-    esp_self_reflasher_config_t self_reflasher_config_app = {
-        .http_config = &http_config_app,
-        .dest_region = app_region,
+    esp_self_reflasher_config_t self_reflasher_config = {
+        .http_config = &http_config,
+        .dest_region = bootloader_region,
     };
 
-    err = esp_self_reflasher_upd_next_config(&self_reflasher_config_app, self_reflasher_handle);
+    err = esp_self_reflasher_upd_next_config(&self_reflasher_config, self_reflasher_handle);
 
     err = esp_self_reflasher_download_bin(self_reflasher_handle);
 
@@ -175,6 +175,16 @@ void app_main(void)
 {
     ESP_LOGI(TAG, "Self Reflasher example app_main start");
 
+    // Initialize NVS.
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // OTA app partition table has a smaller NVS partition size than the non-OTA
+        // partition table. This size mismatch may cause NVS initialization to fail.
+        // If this happens, we erase NVS partition and initialize NVS again.
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
@@ -191,5 +201,5 @@ void app_main(void)
     esp_wifi_set_ps(WIFI_PS_NONE);
 #  endif // CONFIG_EXAMPLE_CONNECT_WIFI
 
-    xTaskCreate(&ota_reflash_example_task, "ota_reflash_example_task", 8192, NULL, 5, NULL);
+    xTaskCreate(&boot_swap_download_example_task, "boot_swap_download_example_task", 8192, NULL, 5, NULL);
 }

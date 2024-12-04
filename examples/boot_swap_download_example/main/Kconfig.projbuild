@@ -3,7 +3,7 @@ menu "Example Configuration"
     menu "Bootloader reflash configuration"
         config EXAMPLE_BOOTLOADER_UPGRADE_URL
             string "Bootloader bin url endpoint"
-            default "http://192.168.100.101:8070/mcuboot_esp32s3.bin"
+            default "http://192.168.100.101:8070/mcuboot-esp32.bin"
             help
                 URL of server which hosts the bootloader binary
                 image.

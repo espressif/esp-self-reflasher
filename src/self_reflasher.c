@@ -18,11 +18,10 @@
 static const char *TAG = "self_reflasher";
 
 struct esp_self_reflasher_handle {
-    const esp_http_client_config_t *http_config;   /*!< ESP HTTP client configuration */
+    const esp_http_client_config_t *http_config;   /* ESP HTTP client configuration */
     esp_http_client_handle_t       http_client;
     const esp_partition_t          *target_partition;
-    dest_region_t                  dest_region;
-    bool                           running_from_ram;
+    addr_region_t                  dest_region;
     size_t                         total_bin_data_size;
     uint32_t                       partition_curr_download_addr;
     uint32_t                       partition_curr_copy_offset;
@@ -30,7 +29,7 @@ struct esp_self_reflasher_handle {
 
 typedef struct esp_self_reflasher_handle esp_self_reflasher_t;
 
-#define BUFFER_SIZE                               0x400      // 1KB
+#define BUFFER_SIZE                               0x400      /* 1KB */
 
 extern esp_flash_t *esp_flash_default_chip;
 
@@ -135,7 +134,7 @@ IRAM_ATTR const esp_partition_t* esp_self_reflasher_get_next_partition(const esp
     return default_ota;
 }
 
-#define IS_REGION_OVERLAPPING(src_start, src_end, dest_start, dest_end)    ((src_start >= dest_start && src_start <= dest_end) || \
+#define IS_REGION_OVERLAPPING(src_start, src_end, dest_start, dest_end)    ((src_start >= dest_start && src_start < dest_end) || \
                                                                            (src_end >= dest_start && src_end <= dest_end))
 
 IRAM_ATTR esp_err_t esp_self_reflasher_init(const esp_self_reflasher_config_t *self_reflasher_config, esp_self_reflasher_handle_t *handle)
@@ -157,29 +156,30 @@ IRAM_ATTR esp_err_t esp_self_reflasher_init(const esp_self_reflasher_config_t *s
         return ESP_ERR_NO_MEM;
     }
 
-    self_reflasher_handle->dest_region.dest_region_address = self_reflasher_config->dest_region.dest_region_address;
-    self_reflasher_handle->dest_region.dest_region_size = self_reflasher_config->dest_region.dest_region_size;
+    self_reflasher_handle->dest_region.region_address = self_reflasher_config->dest_region.region_address;
+    self_reflasher_handle->dest_region.region_size = self_reflasher_config->dest_region.region_size;
     self_reflasher_handle->http_config = self_reflasher_config->http_config;
     self_reflasher_handle->http_client = NULL;
 
     if (self_reflasher_config->target_partition != NULL) {
         if (!IS_REGION_OVERLAPPING(self_reflasher_config->target_partition->address,
                                    self_reflasher_config->target_partition->address + self_reflasher_config->target_partition->size,
-                                   self_reflasher_handle->dest_region.dest_region_address,
-                                   self_reflasher_handle->dest_region.dest_region_address + self_reflasher_handle->dest_region.dest_region_size)) {
+                                   self_reflasher_handle->dest_region.region_address,
+                                   self_reflasher_handle->dest_region.region_address + self_reflasher_handle->dest_region.region_size)) {
             self_reflasher_handle->target_partition = self_reflasher_config->target_partition;
         }
     } else {
         const esp_partition_t *part = NULL;
         uint8_t part_count = esp_self_reflasher_get_ota_partition_count();
+        ESP_LOGD(TAG, "Partition count: %d", part_count);
 
         for (uint8_t i = 0; i < part_count; i++) {
             part = esp_self_reflasher_get_next_partition(part);
             // Check if the partition overlaps destination region
             if (!IS_REGION_OVERLAPPING(part->address,
                                        part->address + part->size,
-                                       self_reflasher_handle->dest_region.dest_region_address,
-                                       self_reflasher_handle->dest_region.dest_region_address + self_reflasher_handle->dest_region.dest_region_size)) {
+                                       self_reflasher_handle->dest_region.region_address,
+                                       self_reflasher_handle->dest_region.region_address + self_reflasher_handle->dest_region.region_size)) {
                 self_reflasher_handle->target_partition = part;
                 break;
             }
@@ -195,8 +195,8 @@ IRAM_ATTR esp_err_t esp_self_reflasher_init(const esp_self_reflasher_config_t *s
     ESP_LOGI(TAG, "src_start 0x%08lx src_end 0x%08lx dest_start 0x%08lx dest_end 0x%08lx",
              self_reflasher_handle->target_partition->address,
              self_reflasher_handle->target_partition->address + self_reflasher_handle->target_partition->size,
-             self_reflasher_handle->dest_region.dest_region_address,
-             self_reflasher_handle->dest_region.dest_region_address + self_reflasher_handle->dest_region.dest_region_size);
+             self_reflasher_handle->dest_region.region_address,
+             self_reflasher_handle->dest_region.region_address + self_reflasher_handle->dest_region.region_size);
 
     // Erase the partition before writing the first time
     err = esp_partition_erase_range(self_reflasher_handle->target_partition, 0, self_reflasher_handle->target_partition->size);
@@ -329,15 +329,15 @@ IRAM_ATTR esp_err_t esp_self_reflasher_copy_to_region(esp_self_reflasher_handle_
     }
 
     uint32_t part_curr_offset = self_reflasher_handle->partition_curr_copy_offset;
-    uint32_t address_write = self_reflasher_handle->dest_region.dest_region_address;
+    uint32_t address_write = self_reflasher_handle->dest_region.region_address;
 
     ESP_LOGI(TAG, "Starting copy 0x%08x bytes from address 0x%08lx to address 0x%08lx",
              self_reflasher_handle->total_bin_data_size, self_reflasher_handle->target_partition->address + part_curr_offset, address_write);
 
     // Erase the flash region before writing
     err = esp_flash_erase_region(esp_flash_default_chip,
-                                 self_reflasher_handle->dest_region.dest_region_address,
-                                 self_reflasher_handle->dest_region.dest_region_size);
+                                 self_reflasher_handle->dest_region.region_address,
+                                 self_reflasher_handle->dest_region.region_size);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "%s: Failed to erase flash destination region, error: %s", __func__, esp_err_to_name(err));
         return err;
@@ -368,10 +368,10 @@ IRAM_ATTR esp_err_t esp_self_reflasher_copy_to_region(esp_self_reflasher_handle_
         address_write += data_len;
     }
 
-#if (LOG_LOCAL_LEVEL >= ESP_LOG_DEBUG)
+#if (CONFIG_LOG_DEFAULT_LEVEL >= ESP_LOG_DEBUG)
     // Read first bytes to verify
     uint32_t read_data = 0;
-    err = esp_flash_read(esp_flash_default_chip, &read_data, self_reflasher_handle->dest_region.dest_region_address, 4);
+    err = esp_flash_read(esp_flash_default_chip, &read_data, self_reflasher_handle->dest_region.region_address, 4);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "%s: Failed to read from flash, error: %s", __func__, esp_err_to_name(err));
         return err;
@@ -381,7 +381,7 @@ IRAM_ATTR esp_err_t esp_self_reflasher_copy_to_region(esp_self_reflasher_handle_
 
     ESP_LOGI(TAG, "Data copied from partition address 0x%08lx offset 0x%08lx to region: 0x%08lx",
              self_reflasher_handle->target_partition->address, self_reflasher_handle->partition_curr_copy_offset,
-             self_reflasher_handle->dest_region.dest_region_address);
+             self_reflasher_handle->dest_region.region_address);
 
     return err;
 }
@@ -399,29 +399,29 @@ IRAM_ATTR esp_err_t esp_self_reflasher_upd_next_config(const esp_self_reflasher_
         return ESP_ERR_INVALID_ARG;
     }
 
-    self_reflasher_handle->dest_region.dest_region_address = self_reflasher_config->dest_region.dest_region_address;
-    self_reflasher_handle->dest_region.dest_region_size = self_reflasher_config->dest_region.dest_region_size;
+    self_reflasher_handle->dest_region.region_address = self_reflasher_config->dest_region.region_address;
+    self_reflasher_handle->dest_region.region_size = self_reflasher_config->dest_region.region_size;
     self_reflasher_handle->http_config = self_reflasher_config->http_config;
     self_reflasher_handle->http_client = NULL;
 
     const esp_partition_t *handle_partition = self_reflasher_handle->target_partition;
     if (self_reflasher_config->target_partition == NULL) {
-        ESP_LOGD(TAG, "src_start 0x%08lx src_end 0x%08lx dest_start 0x%08lx dest_end 0x%08lx",
+        ESP_LOGD(TAG, "handle_partition_start 0x%08lx handle_partition_end 0x%08lx dest_start 0x%08lx dest_end 0x%08lx",
                  self_reflasher_handle->target_partition->address,
                  self_reflasher_handle->target_partition->address + self_reflasher_handle->target_partition->size,
-                 self_reflasher_handle->dest_region.dest_region_address,
-                 self_reflasher_handle->dest_region.dest_region_address + self_reflasher_handle->dest_region.dest_region_size);
+                 self_reflasher_handle->dest_region.region_address,
+                 self_reflasher_handle->dest_region.region_address + self_reflasher_handle->dest_region.region_size);
 
         // Check if current target partition overlaps with the new destination region
         if (IS_REGION_OVERLAPPING(self_reflasher_handle->target_partition->address,
                                   self_reflasher_handle->target_partition->address + self_reflasher_handle->target_partition->size,
-                                  self_reflasher_handle->dest_region.dest_region_address,
-                                  self_reflasher_handle->dest_region.dest_region_address + self_reflasher_handle->dest_region.dest_region_size)) {
+                                  self_reflasher_handle->dest_region.region_address,
+                                  self_reflasher_handle->dest_region.region_address + self_reflasher_handle->dest_region.region_size)) {
             ESP_LOGI(TAG, "Current used partition overlaps with destination. Trying to fetch next partition...");
 
             // Search for a new target partition
             self_reflasher_handle->target_partition = NULL;
-            const esp_partition_t *part = NULL;
+            const esp_partition_t *part = handle_partition;
             uint8_t part_count = esp_self_reflasher_get_ota_partition_count();
 
             for (uint8_t i = 0; i < part_count; i++) {
@@ -429,8 +429,8 @@ IRAM_ATTR esp_err_t esp_self_reflasher_upd_next_config(const esp_self_reflasher_
                 // Check if the partition overlaps destination region
                 if (!IS_REGION_OVERLAPPING(part->address,
                                            part->address + part->size,
-                                           self_reflasher_handle->dest_region.dest_region_address,
-                                           self_reflasher_handle->dest_region.dest_region_address + self_reflasher_handle->dest_region.dest_region_size)) {
+                                           self_reflasher_handle->dest_region.region_address,
+                                           self_reflasher_handle->dest_region.region_address + self_reflasher_handle->dest_region.region_size)) {
                     self_reflasher_handle->target_partition = part;
                     break;
                 }
@@ -439,8 +439,8 @@ IRAM_ATTR esp_err_t esp_self_reflasher_upd_next_config(const esp_self_reflasher_
     } else {
         if (!IS_REGION_OVERLAPPING(self_reflasher_config->target_partition->address,
                                    self_reflasher_config->target_partition->address + self_reflasher_config->target_partition->size,
-                                   self_reflasher_handle->dest_region.dest_region_address,
-                                   self_reflasher_handle->dest_region.dest_region_address + self_reflasher_handle->dest_region.dest_region_size)) {
+                                   self_reflasher_handle->dest_region.region_address,
+                                   self_reflasher_handle->dest_region.region_address + self_reflasher_handle->dest_region.region_size)) {
             self_reflasher_handle->target_partition = self_reflasher_config->target_partition;
         } else {
             // New target partition overlaps the destination region
@@ -454,12 +454,18 @@ IRAM_ATTR esp_err_t esp_self_reflasher_upd_next_config(const esp_self_reflasher_
         return ESP_ERR_NOT_FOUND;
     }
 
-    if (handle_partition != self_reflasher_handle->target_partition) {
-        ESP_LOGI(TAG, "New partition target set");
+    if (self_reflasher_handle->target_partition->size - self_reflasher_handle->partition_curr_download_addr
+            < self_reflasher_handle->dest_region.region_size ||
+        handle_partition != self_reflasher_handle->target_partition) {
+        if (handle_partition != self_reflasher_handle->target_partition) {
+            ESP_LOGI(TAG, "New partition target set");
+        } else {
+            ESP_LOGI(TAG, "Current selected partition for download placement will be erased");
+        }
 
         self_reflasher_handle->partition_curr_copy_offset = 0;
         self_reflasher_handle->partition_curr_download_addr = 0;
-        // Erase the new set partition before writing the first time
+        // Erase the set partition before writing the first time
         err = esp_partition_erase_range(self_reflasher_handle->target_partition, 0, self_reflasher_handle->target_partition->size);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "%s: Failed to erase partition: %s", __func__, esp_err_to_name(err));
@@ -472,3 +478,79 @@ IRAM_ATTR esp_err_t esp_self_reflasher_upd_next_config(const esp_self_reflasher_
 
     return ESP_OK;
 }
+
+IRAM_ATTR esp_err_t esp_self_reflasher_directly_copy_to_region(const esp_self_reflasher_config_t *self_reflasher_config)
+{
+    esp_err_t err = ESP_OK;
+    char data[BUFFER_SIZE] = {0};
+    size_t data_len = BUFFER_SIZE;
+
+    if (self_reflasher_config == NULL) {
+        ESP_LOGE(TAG, "%s: Invalid argument", __func__);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint32_t address_read = self_reflasher_config->src_region.region_address;
+    uint32_t address_write = self_reflasher_config->dest_region.region_address;
+
+    ESP_LOGI(TAG, "Starting copy 0x%08x bytes from address 0x%08lx to address 0x%08lx",
+             self_reflasher_config->src_bin_size, address_read, address_write);
+
+    // Erase first flash sector from the destination region
+    err = esp_flash_erase_region(esp_flash_default_chip,
+                                 address_write,
+                                 SPI_FLASH_SEC_SIZE);
+    while (address_read < self_reflasher_config->src_region.region_address + self_reflasher_config->src_bin_size) {
+        data_len = MIN((self_reflasher_config->src_region.region_address + self_reflasher_config->src_bin_size - address_read),
+                        BUFFER_SIZE);
+        ESP_LOGD(TAG, "Reading 0x%08x bytes (data_len) from address 0x%08lx",
+                 data_len, address_read);
+
+        if (address_write % SPI_FLASH_SEC_SIZE == 0) {
+            // Erase the flash sector as data is being written
+            err = esp_flash_erase_region(esp_flash_default_chip,
+                                         address_write,
+                                         SPI_FLASH_SEC_SIZE);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "%s: Failed to erase flash destination region, error: %s", __func__, esp_err_to_name(err));
+                return err;
+            }
+            ESP_LOGD(TAG, "Flash destination sector erased successfully");
+        }
+
+        err = esp_flash_read(esp_flash_default_chip, data, address_read, data_len);
+
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "%s: Failed to read from flash, address: 0x%08lx, error: %s", __func__, self_reflasher_config->src_region.region_address + address_read, esp_err_to_name(err));
+            return err;
+        }
+
+        err = esp_flash_write(esp_flash_default_chip, data, address_write, data_len);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "%s: Failed to write to flash, address: 0x%08lx, error: %s", __func__, address_write, esp_err_to_name(err));
+            return err;
+        }
+        ESP_LOGD(TAG, "Data written to address 0x%08lx successfully", address_write);
+
+        address_read += data_len;
+        address_write += data_len;
+    }
+
+#if (CONFIG_LOG_DEFAULT_LEVEL >= ESP_LOG_DEBUG)
+    // Read first bytes to verify
+    uint32_t read_data = 0;
+    err = esp_flash_read(esp_flash_default_chip, &read_data, self_reflasher_config->dest_region.region_address, 4);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "%s: Failed to read from flash, error: %s", __func__, esp_err_to_name(err));
+        return err;
+    }
+    ESP_LOGD(TAG, "Data read from flash: 0x%08lx", read_data);
+#endif
+
+    ESP_LOGI(TAG, "Data copied from address 0x%08lx to region: 0x%08lx",
+             self_reflasher_config->src_region.region_address,
+             self_reflasher_config->dest_region.region_address);
+
+    return err;
+}
+
