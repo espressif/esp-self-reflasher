@@ -81,6 +81,8 @@ It is also possible to set and repeat the process for downloading other `reflash
 ```
 7. Repeat steps 3 and 4;
 
+Example of this workflow [here](./examples/boot_swap_download_example/README.md#workflow-diagram)
+
 ### Constraints
 
 The reflash image size should fit into an existing partition.
@@ -102,6 +104,8 @@ The process can be described as following:
 ```c
     err = esp_self_reflasher_directly_copy_to_region(&self_reflasher_config);
 ```
+
+Example of this workflow [here](./examples/boot_swap_embedded_example/README.md#workflow-diagram)
 
 ### Constraints
 

@@ -13,6 +13,10 @@ The **target bootloader** and **target OS/app** considered in this example are t
 
 Note that the bootloader and NuttX app binaries are concatenated into one single binary considering their MCUboot slot offset configuration (as can be seen in [example_bin_dir](/example_bin_dir)), this binary is the target **reflashing image** that will be embedded into the project application.
 
+### Workflow diagram
+
+![Boot Swap Embedded Example](reflasher-embedded-example.png)
+
 ## How to use the example
 
 ### Configure the project

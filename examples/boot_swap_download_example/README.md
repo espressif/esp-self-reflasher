@@ -19,6 +19,10 @@ The **target bootloader** destination is the regular bootloader region address. 
 
 Currently this example works with plain HTTP requests for downloading. HTTPS work is on progress.
 
+### Workflow diagram
+
+![Boot Swap Download Example](reflasher-download-example.png)
+
 ## How to use the example
 
 ### Configure the project
